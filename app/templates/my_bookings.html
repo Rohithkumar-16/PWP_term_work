@@ -1,0 +1,96 @@
+{% extends "base.html" %}
+{% block title %}My Reservations — The Halcyon Hotel{% endblock %}
+
+{% block content %}
+<section class="max-w-6xl mx-auto px-4 sm:px-6 lg:px-8 py-10 space-y-8">
+  <div class="flex flex-col sm:flex-row sm:items-end justify-between gap-4">
+    <div>
+      <h1 class="font-display text-3xl font-bold text-stone-900">My Reservations</h1>
+      <p class="text-sm text-stone-600 mt-1">Review upcoming stays, confirmation codes, or cancel flexibly.</p>
+    </div>
+    <a href="{{ url_for('main.index') }}#rooms" class="px-4 py-2.5 bg-blue-700 hover:bg-blue-800 text-white text-xs font-semibold rounded-xl transition-colors whitespace-nowrap">
+      Book Another Room
+    </a>
+  </div>
+
+  <div class="space-y-4">
+    <h2 class="text-sm font-semibold text-stone-700">Upcoming &amp; Active Stays ({{ upcoming | length }})</h2>
+    {% if upcoming %}
+      <div class="grid grid-cols-1 gap-5">
+        {% for b in upcoming %}
+          <article class="bg-white border {{ 'border-emerald-500 ring-2 ring-emerald-100' if highlight == b.confirmation_code else 'border-stone-200' }} rounded-2xl p-5 sm:p-6 flex flex-col md:flex-row gap-6 items-start">
+            <img src="{{ b.room.image_url }}" alt="{{ b.room.name }}" class="w-full md:w-56 h-44 object-cover rounded-xl shrink-0 bg-stone-100" />
+            <div class="flex-1 min-w-0 space-y-2.5">
+              <div class="flex flex-wrap items-center justify-between gap-2">
+                <div class="text-xs font-medium text-stone-500">
+                  Room {{ b.room.room_number }} &middot;
+                  <span class="font-mono font-semibold text-blue-700">{{ b.confirmation_code }}</span>
+                </div>
+                <span class="text-xs font-semibold text-emerald-700">Confirmed Stay</span>
+              </div>
+              <h3 class="font-display text-2xl font-bold text-stone-900">{{ b.room.name }}</h3>
+              <p class="text-sm text-stone-700 font-mono tabular-nums">
+                {{ b.check_in.isoformat() }} &rarr; {{ b.check_out.isoformat() }} &middot; {{ b.nights }} night{% if b.nights > 1 %}s{% endif %} &middot; {{ b.guest_count }} guest{% if b.guest_count > 1 %}s{% endif %}
+              </p>
+              <div class="text-xs text-stone-500 tabular-nums">
+                Subtotal ${{ '%.2f' | format(b.subtotal) }} &middot; Tax ${{ '%.2f' | format(b.tax_amount) }} &middot; Service Fee ${{ '%.2f' | format(b.service_fee) }}
+              </div>
+              {% if b.special_requests %}
+                <p class="text-xs text-stone-600">Note: {{ b.special_requests }}</p>
+              {% endif %}
+            </div>
+            <div class="w-full md:w-auto md:text-right flex md:flex-col items-center md:items-end justify-between gap-3 pt-4 md:pt-0 border-t md:border-t-0 border-stone-100 shrink-0">
+              <div>
+                <div class="font-mono text-2xl font-bold text-stone-900 tabular-nums">${{ '%.2f' | format(b.total_price) }}</div>
+                <div class="text-xs text-stone-500">Total paid / due</div>
+              </div>
+              <form method="POST" action="{{ url_for('main.cancel_my_booking', booking_id=b.id) }}">
+                <input type="hidden" name="csrf_token" value="{{ csrf_token() }}" />
+                <button type="submit" class="px-4 py-2 text-xs font-semibold text-rose-700 bg-rose-50 hover:bg-rose-100 rounded-xl transition-colors whitespace-nowrap">
+                  Cancel Reservation
+                </button>
+              </form>
+            </div>
+          </article>
+        {% endfor %}
+      </div>
+    {% else %}
+      <div class="bg-white border border-stone-200 rounded-2xl p-12 text-center">
+        <h3 class="font-display text-xl font-bold text-stone-900">No upcoming reservations</h3>
+        <p class="text-sm text-stone-600 mt-1.5">Explore our sunlit rooms and lock in your next dates.</p>
+        <a href="{{ url_for('main.index') }}#rooms" class="inline-block mt-5 px-5 py-2.5 bg-orange-600 text-white text-xs font-semibold rounded-xl">Browse Available Rooms</a>
+      </div>
+    {% endif %}
+  </div>
+
+  {% if past_or_cancelled %}
+    <div class="space-y-4 pt-4">
+      <h2 class="text-sm font-semibold text-stone-700">History &amp; Cancelled Reservations ({{ past_or_cancelled | length }})</h2>
+      <div class="bg-white border border-stone-200 rounded-2xl overflow-x-auto">
+        <table class="w-full text-left text-sm">
+          <thead class="border-b border-stone-200 text-xs text-stone-500 bg-stone-50">
+            <tr>
+              <th class="py-3.5 px-4 font-semibold">Code</th>
+              <th class="py-3.5 px-4 font-semibold">Room</th>
+              <th class="py-3.5 px-4 font-semibold">Stay Dates</th>
+              <th class="py-3.5 px-4 font-semibold">Status</th>
+              <th class="py-3.5 px-4 font-semibold text-right">Total</th>
+            </tr>
+          </thead>
+          <tbody class="divide-y divide-stone-100">
+            {% for b in past_or_cancelled %}
+              <tr>
+                <td class="py-3.5 px-4 font-mono text-xs text-stone-700">{{ b.confirmation_code }}</td>
+                <td class="py-3.5 px-4 font-medium text-stone-900">{{ b.room.name }}</td>
+                <td class="py-3.5 px-4 font-mono text-xs text-stone-600 tabular-nums">{{ b.check_in.isoformat() }} &rarr; {{ b.check_out.isoformat() }}</td>
+                <td class="py-3.5 px-4 text-xs font-semibold {{ 'text-stone-600' if b.status == 'completed' else 'text-rose-700' }}">{{ b.status | capitalize }}</td>
+                <td class="py-3.5 px-4 font-mono text-right text-stone-900 tabular-nums">${{ '%.2f' | format(b.total_price) }}</td>
+              </tr>
+            {% endfor %}
+          </tbody>
+        </table>
+      </div>
+    </div>
+  {% endif %}
+</section>
+{% endblock %}

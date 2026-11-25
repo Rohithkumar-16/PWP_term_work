@@ -1,0 +1,23 @@
+services:
+  - type: web
+    name: halcyon-hotel-booking
+    runtime: python
+    buildCommand: pip install -r requirements.txt
+    startCommand: gunicorn "wsgi:app" --bind 0.0.0.0:$PORT --workers 2 --threads 4
+    envVars:
+      - key: FLASK_ENV
+        value: production
+      - key: SECRET_KEY
+        generateValue: true
+      - key: DATABASE_URL
+        fromDatabase:
+          name: halcyon-hotel-db
+          property: connectionString
+      - key: ADMIN_EMAIL
+        value: admin@halcyonhotel.com
+      - key: ADMIN_PASSWORD
+        sync: false
+
+databases:
+  - name: halcyon-hotel-db
+    plan: free

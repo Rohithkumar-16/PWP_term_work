@@ -1,0 +1,237 @@
+{% extends "base.html" %}
+{% block title %}Reception Operations — The Halcyon Hotel{% endblock %}
+
+{% block content %}
+<section class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-10 space-y-8">
+  <div class="flex flex-col sm:flex-row sm:items-end justify-between gap-4">
+    <div>
+      <h1 class="font-display text-3xl font-bold text-stone-900">Reception Operations</h1>
+      <p class="text-sm text-stone-600 mt-1">Live occupancy snapshot, instant room status control, and guest reservations.</p>
+    </div>
+    <button type="button" onclick="document.getElementById('add-room-modal').classList.remove('hidden')" class="px-5 py-2.5 bg-orange-600 hover:bg-orange-700 text-white text-xs font-semibold rounded-xl transition-colors whitespace-nowrap">
+      + Add New Room
+    </button>
+  </div>
+
+  <!-- Summary KPI Strip -->
+  <div class="grid grid-cols-2 lg:grid-cols-4 gap-5">
+    <div class="bg-white border border-stone-200 rounded-2xl p-5">
+      <div class="text-xs font-medium text-stone-500">Total Inventory</div>
+      <div class="font-mono text-3xl font-bold text-stone-900 mt-2 tabular-nums">{{ metrics.total_rooms }}</div>
+      <div class="text-xs text-stone-500 mt-1">Configured rooms &amp; suites</div>
+    </div>
+    <div class="bg-white border border-stone-200 rounded-2xl p-5">
+      <div class="text-xs font-medium text-stone-500">Available Today</div>
+      <div class="font-mono text-3xl font-bold text-emerald-700 mt-2 tabular-nums">{{ metrics.available_today }}</div>
+      <div class="text-xs text-stone-500 mt-1">Ready for check-in</div>
+    </div>
+    <div class="bg-white border border-stone-200 rounded-2xl p-5">
+      <div class="text-xs font-medium text-stone-500">Active Bookings</div>
+      <div class="font-mono text-3xl font-bold text-blue-700 mt-2 tabular-nums">{{ metrics.active_bookings }}</div>
+      <div class="text-xs text-stone-500 mt-1">Confirmed current &amp; upcoming</div>
+    </div>
+    <div class="bg-white border border-stone-200 rounded-2xl p-5">
+      <div class="text-xs font-medium text-stone-500">Estimated Revenue</div>
+      <div class="font-mono text-3xl font-bold text-stone-900 mt-2 tabular-nums">${{ '%.2f' | format(metrics.estimated_revenue) }}</div>
+      <div class="text-xs text-stone-500 mt-1">Confirmed &amp; completed stays</div>
+    </div>
+  </div>
+
+  <!-- Room Inventory Management -->
+  <div class="space-y-4">
+    <h2 class="font-display text-2xl font-bold text-stone-900">Room Inventory</h2>
+    <div class="bg-white border border-stone-200 rounded-2xl overflow-x-auto">
+      <table class="w-full text-left text-sm">
+        <thead class="border-b border-stone-200 text-xs text-stone-500 bg-stone-50">
+          <tr>
+            <th class="py-3.5 px-4 font-semibold">Room #</th>
+            <th class="py-3.5 px-4 font-semibold">Name</th>
+            <th class="py-3.5 px-4 font-semibold">Category</th>
+            <th class="py-3.5 px-4 font-semibold">Capacity</th>
+            <th class="py-3.5 px-4 font-semibold">Quick Status</th>
+            <th class="py-3.5 px-4 font-semibold text-right">Rate / Night</th>
+            <th class="py-3.5 px-4 font-semibold text-right">Details</th>
+          </tr>
+        </thead>
+        <tbody class="divide-y divide-stone-100">
+          {% for room in rooms %}
+            <tr class="hover:bg-stone-50/70">
+              <td class="py-3.5 px-4 font-mono text-xs font-semibold text-stone-900">{{ room.room_number }}</td>
+              <td class="py-3.5 px-4 font-medium text-stone-900">{{ room.name }}</td>
+              <td class="py-3.5 px-4 text-stone-600">{{ room.room_type }}</td>
+              <td class="py-3.5 px-4 text-stone-600 tabular-nums">{{ room.capacity }} guests</td>
+              <td class="py-3.5 px-4">
+                <form method="POST" action="{{ url_for('admin.quick_room_status', room_id=room.id) }}" class="inline">
+                  <input type="hidden" name="csrf_token" value="{{ csrf_token() }}" />
+                  <select name="status" onchange="this.form.submit()" class="text-xs font-semibold px-2.5 py-1.5 rounded-lg border border-stone-200 bg-white {{ 'text-emerald-700' if room.status == 'available' else ('text-amber-700' if room.status == 'maintenance' else 'text-rose-700') }}">
+                    {% for s in room_statuses %}
+                      <option value="{{ s }}" {% if room.status == s %}selected{% endif %}>{{ s | capitalize }}</option>
+                    {% endfor %}
+                  </select>
+                </form>
+              </td>
+              <td class="py-3.5 px-4 font-mono text-right text-stone-900 tabular-nums">${{ '%.2f' | format(room.price_per_night) }}</td>
+              <td class="py-3.5 px-4 text-right">
+                <button
+                  type="button"
+                  onclick='openEditRoomModal({{ room.id }}, {{ room.name | tojson }}, {{ room.room_type | tojson }}, {{ room.price_per_night }}, {{ room.capacity }}, {{ room.status | tojson }}, {{ room.description | tojson }}, {{ room.amenities | tojson }})'
+                  class="px-3 py-1.5 text-xs font-semibold text-blue-700 bg-blue-50 hover:bg-blue-100 rounded-lg transition-colors"
+                >
+                  Edit
+                </button>
+              </td>
+            </tr>
+          {% endfor %}
+        </tbody>
+      </table>
+    </div>
+  </div>
+
+  <!-- All Guest Bookings -->
+  <div class="space-y-4">
+    <h2 class="font-display text-2xl font-bold text-stone-900">Guest Reservations</h2>
+    <div class="bg-white border border-stone-200 rounded-2xl overflow-x-auto">
+      <table class="w-full text-left text-sm">
+        <thead class="border-b border-stone-200 text-xs text-stone-500 bg-stone-50">
+          <tr>
+            <th class="py-3.5 px-4 font-semibold">Code</th>
+            <th class="py-3.5 px-4 font-semibold">Guest</th>
+            <th class="py-3.5 px-4 font-semibold">Room</th>
+            <th class="py-3.5 px-4 font-semibold">Stay Dates</th>
+            <th class="py-3.5 px-4 font-semibold">Status</th>
+            <th class="py-3.5 px-4 font-semibold text-right">Total</th>
+            <th class="py-3.5 px-4 font-semibold text-right">Action</th>
+          </tr>
+        </thead>
+        <tbody class="divide-y divide-stone-100">
+          {% for b in bookings %}
+            <tr class="hover:bg-stone-50/70">
+              <td class="py-3.5 px-4 font-mono text-xs font-semibold text-blue-700">{{ b.confirmation_code }}</td>
+              <td class="py-3.5 px-4">
+                <div class="font-medium text-stone-900">{{ b.guest_name }}</div>
+                <div class="text-xs text-stone-500">{{ b.guest_email }}</div>
+              </td>
+              <td class="py-3.5 px-4 text-stone-700">{{ b.room.room_number }} &middot; {{ b.room.name }}</td>
+              <td class="py-3.5 px-4 font-mono text-xs text-stone-600 tabular-nums">{{ b.check_in.isoformat() }} &rarr; {{ b.check_out.isoformat() }}</td>
+              <td class="py-3.5 px-4 text-xs font-semibold {{ 'text-emerald-700' if b.status == 'confirmed' else ('text-stone-600' if b.status == 'completed' else 'text-rose-700') }}">
+                {{ b.status | capitalize }}
+              </td>
+              <td class="py-3.5 px-4 font-mono text-right text-stone-900 tabular-nums">${{ '%.2f' | format(b.total_price) }}</td>
+              <td class="py-3.5 px-4 text-right whitespace-nowrap space-x-1.5">
+                {% if b.status == 'confirmed' %}
+                  <form method="POST" action="{{ url_for('admin.admin_complete_booking', booking_id=b.id) }}" class="inline">
+                    <input type="hidden" name="csrf_token" value="{{ csrf_token() }}" />
+                    <button type="submit" class="px-2.5 py-1.5 text-xs font-semibold text-blue-700 bg-blue-50 hover:bg-blue-100 rounded-lg">Check Out</button>
+                  </form>
+                  <form method="POST" action="{{ url_for('admin.admin_cancel_booking', booking_id=b.id) }}" class="inline">
+                    <input type="hidden" name="csrf_token" value="{{ csrf_token() }}" />
+                    <button type="submit" class="px-2.5 py-1.5 text-xs font-semibold text-rose-700 bg-rose-50 hover:bg-rose-100 rounded-lg">Cancel</button>
+                  </form>
+                {% else %}
+                  <span class="text-xs text-stone-400">Archived</span>
+                {% endif %}
+              </td>
+            </tr>
+          {% endfor %}
+        </tbody>
+      </table>
+    </div>
+  </div>
+</section>
+
+<!-- Add Room Modal -->
+<div id="add-room-modal" class="hidden fixed inset-0 z-50 bg-stone-950/60 backdrop-blur-sm flex items-center justify-center p-4">
+  <div class="bg-white border border-stone-200 rounded-2xl max-w-lg w-full p-6 shadow-2xl">
+    <div class="flex justify-between items-center pb-3 border-b border-stone-100">
+      <h3 class="font-display text-xl font-bold text-stone-900">Add New Room</h3>
+      <button type="button" onclick="document.getElementById('add-room-modal').classList.add('hidden')" class="text-2xl text-stone-400">&times;</button>
+    </div>
+    <form method="POST" action="{{ url_for('admin.create_room') }}" class="mt-4 space-y-3">
+      <input type="hidden" name="csrf_token" value="{{ csrf_token() }}" />
+      <div class="grid grid-cols-2 gap-3">
+        <div>
+          <label class="block text-xs font-semibold text-stone-600 mb-1">Room Number</label>
+          <input name="room_number" required placeholder="e.g. 212" class="w-full px-3 py-2 text-sm border border-stone-300 rounded-xl" />
+        </div>
+        <div>
+          <label class="block text-xs font-semibold text-stone-600 mb-1">Category</label>
+          <select name="room_type" class="w-full px-3 py-2 text-sm border border-stone-300 rounded-xl bg-white">
+            {% for t in room_types %}<option value="{{ t }}">{{ t }}</option>{% endfor %}
+          </select>
+        </div>
+      </div>
+      <div>
+        <label class="block text-xs font-semibold text-stone-600 mb-1">Room Title</label>
+        <input name="name" required placeholder="Harbor Corner Deluxe" class="w-full px-3 py-2 text-sm border border-stone-300 rounded-xl" />
+      </div>
+      <div class="grid grid-cols-2 gap-3">
+        <div>
+          <label class="block text-xs font-semibold text-stone-600 mb-1">Nightly Rate ($)</label>
+          <input name="price_per_night" type="number" step="0.01" min="20" required value="225" class="w-full px-3 py-2 text-sm border border-stone-300 rounded-xl" />
+        </div>
+        <div>
+          <label class="block text-xs font-semibold text-stone-600 mb-1">Max Guests</label>
+          <input name="capacity" type="number" min="1" max="10" required value="2" class="w-full px-3 py-2 text-sm border border-stone-300 rounded-xl" />
+        </div>
+      </div>
+      <div>
+        <label class="block text-xs font-semibold text-stone-600 mb-1">Amenities (comma separated)</label>
+        <input name="amenities" value="High-Speed Wi-Fi, Espresso Bar, Rain Shower" class="w-full px-3 py-2 text-sm border border-stone-300 rounded-xl" />
+      </div>
+      <div>
+        <label class="block text-xs font-semibold text-stone-600 mb-1">Description</label>
+        <textarea name="description" rows="2" class="w-full px-3 py-2 text-sm border border-stone-300 rounded-xl" placeholder="Room highlights..."></textarea>
+      </div>
+      <button type="submit" class="w-full py-2.5 bg-blue-700 hover:bg-blue-800 text-white text-sm font-semibold rounded-xl">Create Room</button>
+    </form>
+  </div>
+</div>
+
+<!-- Edit Room Modal -->
+<div id="edit-room-modal" class="hidden fixed inset-0 z-50 bg-stone-950/60 backdrop-blur-sm flex items-center justify-center p-4">
+  <div class="bg-white border border-stone-200 rounded-2xl max-w-lg w-full p-6 shadow-2xl">
+    <div class="flex justify-between items-center pb-3 border-b border-stone-100">
+      <h3 class="font-display text-xl font-bold text-stone-900">Edit Room</h3>
+      <button type="button" onclick="document.getElementById('edit-room-modal').classList.add('hidden')" class="text-2xl text-stone-400">&times;</button>
+    </div>
+    <form id="edit-room-form" method="POST" action="" class="mt-4 space-y-3">
+      <input type="hidden" name="csrf_token" value="{{ csrf_token() }}" />
+      <div>
+        <label class="block text-xs font-semibold text-stone-600 mb-1">Room Title</label>
+        <input id="edit-room-name" name="name" required class="w-full px-3 py-2 text-sm border border-stone-300 rounded-xl" />
+      </div>
+      <div class="grid grid-cols-3 gap-3">
+        <div>
+          <label class="block text-xs font-semibold text-stone-600 mb-1">Category</label>
+          <select id="edit-room-type" name="room_type" class="w-full px-3 py-2 text-sm border border-stone-300 rounded-xl bg-white">
+            {% for t in room_types %}<option value="{{ t }}">{{ t }}</option>{% endfor %}
+          </select>
+        </div>
+        <div>
+          <label class="block text-xs font-semibold text-stone-600 mb-1">Rate ($)</label>
+          <input id="edit-room-price" name="price_per_night" type="number" step="0.01" min="20" required class="w-full px-3 py-2 text-sm border border-stone-300 rounded-xl" />
+        </div>
+        <div>
+          <label class="block text-xs font-semibold text-stone-600 mb-1">Capacity</label>
+          <input id="edit-room-capacity" name="capacity" type="number" min="1" max="10" required class="w-full px-3 py-2 text-sm border border-stone-300 rounded-xl" />
+        </div>
+      </div>
+      <div>
+        <label class="block text-xs font-semibold text-stone-600 mb-1">Operational Status</label>
+        <select id="edit-room-status" name="status" class="w-full px-3 py-2 text-sm border border-stone-300 rounded-xl bg-white">
+          {% for s in room_statuses %}<option value="{{ s }}">{{ s | capitalize }}</option>{% endfor %}
+        </select>
+      </div>
+      <div>
+        <label class="block text-xs font-semibold text-stone-600 mb-1">Amenities</label>
+        <input id="edit-room-amenities" name="amenities" class="w-full px-3 py-2 text-sm border border-stone-300 rounded-xl" />
+      </div>
+      <div>
+        <label class="block text-xs font-semibold text-stone-600 mb-1">Description</label>
+        <textarea id="edit-room-desc" name="description" rows="2" class="w-full px-3 py-2 text-sm border border-stone-300 rounded-xl"></textarea>
+      </div>
+      <button type="submit" class="w-full py-2.5 bg-blue-700 hover:bg-blue-800 text-white text-sm font-semibold rounded-xl">Save Room Changes</button>
+    </form>
+  </div>
+</div>
+{% endblock %}

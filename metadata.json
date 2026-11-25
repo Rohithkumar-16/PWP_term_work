@@ -1,0 +1,6 @@
+{
+  "name": "The Halcyon Hotel — Room Booking System",
+  "description": "A colorful, modern hotel room booking and reception management web application with real-time availability checks, guest reservations, and an admin dashboard.",
+  "requestFramePermissions": [],
+  "majorCapabilities": ["MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"]
+}

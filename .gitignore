@@ -1,0 +1,24 @@
+# Python
+__pycache__/
+*.py[cod]
+*$py.class
+.venv/
+venv/
+ENV/
+instance/
+*.db
+*.sqlite
+*.sqlite3
+
+# Node / Frontend Build
+node_modules/
+build/
+dist/
+coverage/
+
+# Environment & OS
+.DS_Store
+*.log
+.env
+.env.*
+!.env.example
